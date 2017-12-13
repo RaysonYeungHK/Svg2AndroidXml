@@ -20,18 +20,12 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.Locale;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
-import org.xml.sax.InputSource;
 
 import com.android.ide.common.util.AssetUtil;
 import com.google.common.base.Charsets;
@@ -56,36 +50,10 @@ public class VdPreview {
     public static final int MIN_PREVIEW_IMAGE_SIZE = 1;
 
     /**
-     * Parse the VectorDrawable's XML file into a document object.
-     *
-     * @param xmlFileContent the content of the VectorDrawable's XML file.
-     * @param errorLog when errors were found, log them in this builder if it is not null.
-     * @return parsed document or null if errors happened.
-     */
-    @Nullable
-    public static Document parseVdStringIntoDocument(@NonNull String xmlFileContent,
-                                                     @Nullable StringBuilder errorLog) {
-      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-      DocumentBuilder db;
-      Document document;
-      try {
-        db = dbf.newDocumentBuilder();
-        document = db.parse(new InputSource(new StringReader(xmlFileContent)));
-      }
-      catch (Exception e) {
-        if (errorLog != null) {
-          errorLog.append("Exception while parsing XML file:\n").append(e.getMessage());
-        }
-        return null;
-      }
-      return document;
-    }
-
-    /**
      * This encapsulates the information used to determine the preview image size.
      * The reason we have different ways here is that both Studio UI and build process need
      * to use this common code path to generate images for vectordrawable.
-     * When {@code mUseWidth} is true, use {@code mImageMaxDimension} as the maximum
+     * When {@value mUseWidth} is true, use {@code mImageMaxDimension} as the maximum
      * dimension value while keeping the aspect ratio.
      * Otherwise, use {@code mImageScale} to scale the image based on the XML's size information.
      */
@@ -139,7 +107,6 @@ public class VdPreview {
         format.setIndent(4);
         format.setEncoding("UTF-8");
         format.setOmitComments(true);
-        format.setOmitXMLDeclaration(true);
         return format;
     }
 
@@ -170,6 +137,7 @@ public class VdPreview {
      * @param document the parsed document of original VectorDrawable's XML file.
      * @param info incoming override information for VectorDrawable.
      * @param errorLog log for the parsing errors and warnings.
+     * @param srcSize as an output, store the original size of the VectorDrawable
      * @return the overridden XML file in one string. If exception happens
      * or no attributes needs to be overriden, return null.
      */
@@ -201,7 +169,7 @@ public class VdPreview {
         }
         if (info.needsOverrideOpacity()) {
             Node nodeAttr = attr.getNamedItem(ANDROID_ALPHA);
-            String opacityValue = String.format((Locale) null, "%.2f", info.getOpacity() / 100.0f);
+            String opacityValue = String.format("%.2f", info.getOpacity() / 100.0f);
             if (nodeAttr != null) {
                 nodeAttr.setTextContent(opacityValue);
             }
@@ -210,7 +178,6 @@ public class VdPreview {
             }
             isXmlFileContentChanged = true;
         }
-
         // When auto mirror is set to true, then we always need to set it.
         // Because SVG has no such attribute at all.
         if (info.needsOverrideAutoMirrored()) {
@@ -264,7 +231,7 @@ public class VdPreview {
 
     /**
      * This generates an image according to the VectorDrawable's content {@code xmlFileContent}.
-     * At the same time, {@code vdErrorLog} captures all the errors found during parsing.
+     * At the same time, {@vdErrorLog} captures all the errors found during parsing.
      * The size of image is determined by the {@code size}.
      *
      * @param targetSize the size of result image.
@@ -283,46 +250,12 @@ public class VdPreview {
         VdTree vdTree;
 
         InputStream inputStream = new ByteArrayInputStream(
-            xmlFileContent.getBytes(Charsets.UTF_8));
+                xmlFileContent.getBytes(Charsets.UTF_8));
         vdTree = p.parse(inputStream, vdErrorLog);
         if (vdTree == null) {
             return null;
         }
 
-        return getPreviewFromVectorTree(targetSize, vdTree, vdErrorLog);
-    }
-
-    /**
-     * This generates an image from a vector tree.
-     * The size of image is determined by the {@code size}.
-     *
-     * @param targetSize the size of result image.
-     * @param xml        The vector drawable XML document
-     * @param vdErrorLog log for the errors and warnings.
-     * @return an preview image according to the VectorDrawable's XML
-     */
-    @Nullable
-    public static BufferedImage getPreviewFromVectorDocument(@NonNull TargetSize targetSize,
-                                                             @NonNull Document xml,
-                                                             @Nullable StringBuilder vdErrorLog) {
-        VdTree vdTree = new VdTree();
-        vdTree.parse(xml);
-        return getPreviewFromVectorTree(targetSize, vdTree, vdErrorLog);
-    }
-
-    /**
-     * This generates an image from a vector tree.
-     * The size of image is determined by the {@code size}.
-     *
-     * @param targetSize the size of result image.
-     * @param vdTree     The vector drawable
-     * @param vdErrorLog log for the errors and warnings.
-     * @return an preview image according to the VectorDrawable's XML
-     */
-    @Nullable
-    public static BufferedImage getPreviewFromVectorTree(@NonNull TargetSize targetSize,
-                                                         @NonNull VdTree vdTree,
-                                                         @Nullable StringBuilder vdErrorLog) {
         // If the forceImageSize is set (>0), then we honor that.
         // Otherwise, we will ask the vectorDrawable for the prefer size, then apply the imageScale.
         float vdWidth = vdTree.getBaseWidth();
@@ -342,8 +275,8 @@ public class VdPreview {
             float scaledHeight = ratioToForceImageSize * vdHeight;
             imageWidth = Math.max(MIN_PREVIEW_IMAGE_SIZE, Math.min(MAX_PREVIEW_IMAGE_SIZE, scaledWidth));
             imageHeight = Math.max(MIN_PREVIEW_IMAGE_SIZE, Math.min(MAX_PREVIEW_IMAGE_SIZE, scaledHeight));
-            if (vdErrorLog != null && (scaledWidth != imageWidth || scaledHeight != imageHeight)) {
-                vdErrorLog.append("Invalid image size, can't fit in a square whose size is").append(forceImageSize);
+            if (scaledWidth != imageWidth || scaledHeight != imageHeight) {
+                vdErrorLog.append("Invalid image size, can't fit in a square whose size is" + forceImageSize);
             }
         } else {
             imageWidth = vdWidth * imageScale;
@@ -355,5 +288,9 @@ public class VdPreview {
         BufferedImage image = AssetUtil.newArgbBufferedImage((int)imageWidth, (int)imageHeight);
         vdTree.drawIntoImage(image);
         return image;
+    }
+
+    public static void main(String[] args) {
+        System.out.println("Hello from sdk-common-lib.");
     }
 }

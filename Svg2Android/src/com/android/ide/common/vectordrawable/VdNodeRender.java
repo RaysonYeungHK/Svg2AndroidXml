@@ -27,14 +27,15 @@ import java.util.logging.Logger;
  * The logic and math here are the same as PathParser.java in framework.
  */
 class VdNodeRender {
-    private static final Logger LOGGER = Logger.getLogger(VdNodeRender.class.getSimpleName());
+    private static Logger logger = Logger.getLogger(VdNodeRender.class
+            .getSimpleName());
 
-    public static void createPath(VdPath.Node[] node, Path2D path) {
+    public static void creatPath(VdPath.Node[] node, Path2D path) {
         float[] current = new float[6];
         char lastCmd = ' ';
         for (int i = 0; i < node.length; i++) {
-            addCommand(path, current, node[i].getType(), lastCmd,node[i].getParams());
-            lastCmd = node[i].getType();
+            addCommand(path, current, node[i].type, lastCmd,node[i].params);
+            lastCmd = node[i].type;
         }
     }
 
@@ -86,37 +87,23 @@ class VdNodeRender {
         }
 
         for (int k = 0; k < val.length; k += incr) {
-            boolean reflectCtrl;
+            boolean reflectCtrl = false;
             float tempReflectedX, tempReflectedY;
 
             switch (cmd) {
                 case 'm':
                     cx += val[k + 0];
                     cy += val[k + 1];
-                    if (k > 0) {
-                        // According to the spec, if a moveto is followed by multiple
-                        // pairs of coordinates, the subsequent pairs are treated as
-                        // implicit lineto commands.
-                        path.lineTo(cx, cy);
-                    } else {
-                        path.moveTo(cx, cy);
-                        loopX = cx;
-                        loopY = cy;
-                    }
+                    path.moveTo(cx, cy);
+                    loopX = cx;
+                    loopY = cy;
                     break;
                 case 'M':
                     cx = val[k + 0];
                     cy = val[k + 1];
-                    if (k > 0) {
-                        // According to the spec, if a moveto is followed by multiple
-                        // pairs of coordinates, the subsequent pairs are treated as
-                        // implicit lineto commands.
-                        path.lineTo(cx, cy);
-                    } else {
-                        path.moveTo(cx, cy);
-                        loopX = cx;
-                        loopY = cy;
-                    }
+                    path.moveTo(cx, cy);
+                    loopX = cx;
+                    loopY = cy;
                     break;
                 case 'l':
                     cx += val[k + 0];
@@ -260,7 +247,7 @@ class VdNodeRender {
             float y1, float a, float b, float theta, boolean isMoreThanHalf,
             boolean isPositiveArc) {
 
-        LOGGER.log(Level.FINE, "(" + x0 + "," + y0 + ")-(" + x1 + "," + y1
+        logger.log(Level.FINE, "(" + x0 + "," + y0 + ")-(" + x1 + "," + y1
                 + ") {" + a + " " + b + "}");
         /* Convert rotation angle from degrees to radians */
         double thetaD = theta * Math.PI / 180.0f;
@@ -273,7 +260,7 @@ class VdNodeRender {
         double y0p = (-x0 * sinTheta + y0 * cosTheta) / b;
         double x1p = (x1 * cosTheta + y1 * sinTheta) / a;
         double y1p = (-x1 * sinTheta + y1 * cosTheta) / b;
-        LOGGER.log(Level.FINE, "unit space (" + x0p + "," + y0p + ")-(" + x1p
+        logger.log(Level.FINE, "unit space (" + x0p + "," + y0p + ")-(" + x1p
                 + "," + y1p + ")");
         /* Compute differences and averages */
         double dx = x0p - x1p;
@@ -283,12 +270,12 @@ class VdNodeRender {
         /* Solve for intersecting unit circles */
         double dsq = dx * dx + dy * dy;
         if (dsq == 0.0) {
-            LOGGER.log(Level.FINE, " Points are coincident");
+            logger.log(Level.FINE, " Points are coincident");
             return; /* Points are coincident */
         }
         double disc = 1.0 / dsq - 1.0 / 4.0;
         if (disc < 0.0) {
-            LOGGER.log(Level.FINE, "Points are too far apart " + dsq);
+            logger.log(Level.FINE, "Points are too far apart " + dsq);
             float adjust = (float) (Math.sqrt(dsq) / 1.99999);
             drawArc(p, x0, y0, x1, y1, a * adjust, b * adjust, theta,
                     isMoreThanHalf, isPositiveArc);
@@ -308,11 +295,11 @@ class VdNodeRender {
         }
 
         double eta0 = Math.atan2((y0p - cy), (x0p - cx));
-        LOGGER.log(Level.FINE, "eta0 = Math.atan2( " + (y0p - cy) + " , "
+        logger.log(Level.FINE, "eta0 = Math.atan2( " + (y0p - cy) + " , "
                 + (x0p - cx) + ") = " + Math.toDegrees(eta0));
 
         double eta1 = Math.atan2((y1p - cy), (x1p - cx));
-        LOGGER.log(Level.FINE, "eta1 = Math.atan2( " + (y1p - cy) + " , "
+        logger.log(Level.FINE, "eta1 = Math.atan2( " + (y1p - cy) + " , "
                 + (x1p - cx) + ") = " + Math.toDegrees(eta1));
         double sweep = (eta1 - eta0);
         if (isPositiveArc != (sweep >= 0)) {
@@ -328,7 +315,7 @@ class VdNodeRender {
         double tcx = cx;
         cx = cx * cosTheta - cy * sinTheta;
         cy = tcx * sinTheta + cy * cosTheta;
-        LOGGER.log(
+        logger.log(
                 Level.FINE,
                         "cx, cy, a, b, x0, y0, thetaD, eta0, sweep = " + cx + " , "
                         + cy + " , " + a + " , " + b + " , " + x0 + " , " + y0
@@ -358,9 +345,9 @@ class VdNodeRender {
         // Taken from equations at:
         // http://spaceroots.org/documents/ellipse/node8.html
         // and http://www.spaceroots.org/documents/ellipse/node22.html
-        // Maximum of 45 degrees per cubic Bezier segment
-        int numSegments = (int) Math.ceil(Math.abs(sweep * 4 / Math.PI));
 
+        // Maximum of 45 degrees per cubic Bezier segment
+        int numSegments = Math.abs((int) Math.ceil(sweep * 4 / Math.PI));
 
         double eta1 = start;
         double cosTheta = Math.cos(theta);
